@@ -1,0 +1,50 @@
+name: Cron Tasks
+
+on:
+  schedule:
+    # Watchdog every 15 min
+    - cron: "*/15 * * * *"
+    # Sync quotes every 5 min (backup to CF Worker)
+    - cron: "*/5 * * * *"
+    # Fetch news every 10 min
+    - cron: "*/10 * * * *"
+    # Generate summaries every 10 min
+    - cron: "*/10 * * * *"
+    # Daily report at 00:00 UTC+8 (16:00 UTC previous day)
+    - cron: "0 16 * * *"
+  workflow_dispatch:
+
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine which cron to run
+        id: determine
+        run: |
+          if [ -z "${{ github.event.schedule }}" ]; then
+            echo "endpoint=watchdog" >> $GITHUB_OUTPUT
+          else
+            case "${{ github.event.schedule }}" in
+              "*/5 * * * *")    echo "endpoint=sync-quotes" >> $GITHUB_OUTPUT ;;
+              "*/10 * * * *")   echo "endpoint=fetch-news" >> $GITHUB_OUTPUT ;;
+              "*/15 * * * *")   echo "endpoint=watchdog" >> $GITHUB_OUTPUT ;;
+              "0 16 * * *")     echo "endpoint=daily-report" >> $GITHUB_OUTPUT ;;
+              *)                echo "endpoint=watchdog" >> $GITHUB_OUTPUT ;;
+            esac
+          fi
+
+      - name: Trigger cron endpoint
+        run: |
+          ENDPOINT="${{ steps.determine.outputs.endpoint }}"
+          echo "Triggering /api/cron/$ENDPOINT"
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            ${{ secrets.NEXT_PUBLIC_APP_URL }}/api/cron/$ENDPOINT)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "HTTP $HTTP_CODE"
+          echo "$BODY"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::warning::Cron $ENDPOINT returned HTTP $HTTP_CODE"
+          fi
