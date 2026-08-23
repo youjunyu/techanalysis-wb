@@ -3,8 +3,7 @@ name: Deploy to Cloudflare Pages
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -30,32 +29,19 @@ jobs:
         run: npx tsc --noEmit
         continue-on-error: true
 
-      - name: Build
-        run: npm run build
+      - name: Build with @cloudflare/next-on-pages
+        run: npx @cloudflare/next-on-pages
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
           TABLE_PREFIX: ${{ secrets.TABLE_PREFIX }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy .next/ --project-name=techanalysis-wb
-
-  # Separate job for cron health check
-  cron-health:
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    schedule:
-      - cron: "*/15 * * * *"
-
-    steps:
-      - name: Trigger watchdog
-        run: |
-          curl -X POST \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json" \
-            ${{ secrets.NEXT_PUBLIC_APP_URL }}/api/cron/watchdog
+          command: pages deploy .vercel/output/static --project-name=techanalysis-wb
