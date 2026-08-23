@@ -6,27 +6,43 @@ on:
     - cron: "*/15 * * * *"
     # Sync quotes every 5 min (backup to CF Worker)
     - cron: "*/5 * * * *"
-    # Fetch news every 10 min
-    - cron: "*/10 * * * *"
-    # Generate summaries every 10 min
-    - cron: "*/10 * * * *"
+    # Fetch news every 10 min (at minute 0,10,20,30,40,50)
+    - cron: "0/10 * * * *"
+    # Generate summaries every 10 min (offset: minute 3,13,23,33,43,53)
+    - cron: "3/10 * * * *"
     # Daily report at 00:00 UTC+8 (16:00 UTC previous day)
     - cron: "0 16 * * *"
   workflow_dispatch:
+    inputs:
+      endpoint:
+        description: "Which cron endpoint to trigger"
+        required: true
+        default: "watchdog"
+        type: choice
+        options:
+          - watchdog
+          - sync-quotes
+          - fetch-news
+          - generate-summaries
+          - daily-report
 
 jobs:
   cron:
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Determine which cron to run
         id: determine
         run: |
-          if [ -z "${{ github.event.schedule }}" ]; then
+          if [ -n "${{ github.event.inputs.endpoint }}" ]; then
+            echo "endpoint=${{ github.event.inputs.endpoint }}" >> $GITHUB_OUTPUT
+          elif [ -z "${{ github.event.schedule }}" ]; then
             echo "endpoint=watchdog" >> $GITHUB_OUTPUT
           else
             case "${{ github.event.schedule }}" in
               "*/5 * * * *")    echo "endpoint=sync-quotes" >> $GITHUB_OUTPUT ;;
-              "*/10 * * * *")   echo "endpoint=fetch-news" >> $GITHUB_OUTPUT ;;
+              "0/10 * * * *")   echo "endpoint=fetch-news" >> $GITHUB_OUTPUT ;;
+              "3/10 * * * *")   echo "endpoint=generate-summaries" >> $GITHUB_OUTPUT ;;
               "*/15 * * * *")   echo "endpoint=watchdog" >> $GITHUB_OUTPUT ;;
               "0 16 * * *")     echo "endpoint=daily-report" >> $GITHUB_OUTPUT ;;
               *)                echo "endpoint=watchdog" >> $GITHUB_OUTPUT ;;
@@ -36,11 +52,12 @@ jobs:
       - name: Trigger cron endpoint
         run: |
           ENDPOINT="${{ steps.determine.outputs.endpoint }}"
-          echo "Triggering /api/cron/$ENDPOINT"
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+          BASE_URL="${{ secrets.NEXT_PUBLIC_APP_URL }}"
+          echo "Triggering $BASE_URL/api/cron/$ENDPOINT"
+          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 120 -X POST \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
-            ${{ secrets.NEXT_PUBLIC_APP_URL }}/api/cron/$ENDPOINT)
+            "${BASE_URL}/api/cron/${ENDPOINT}" 2>&1)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -n -1)
           echo "HTTP $HTTP_CODE"
