@@ -27,11 +27,29 @@ CREATE POLICY "profiles_update_own" ON techanalysis_wb_profiles
 CREATE POLICY "profiles_insert_own" ON techanalysis_wb_profiles
   FOR INSERT WITH CHECK (auth.uid() = id);
 
--- Admin can read all profiles
-CREATE POLICY "profiles_admin_all" ON techanalysis_wb_profiles
-  FOR ALL USING (
-    EXISTS (SELECT 1 FROM techanalysis_wb_profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+-- Admin policy via SECURITY DEFINER helper.
+-- NOTE: the policy body must NOT select from this table directly — that
+-- creates infinite recursion (42P17) and breaks ALL user reads of profiles.
+-- The definer function runs as the table owner, bypassing RLS.
+CREATE OR REPLACE FUNCTION techanalysis_wb_is_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.techanalysis_wb_profiles p
+    WHERE p.id = auth.uid() AND p.role = 'admin'
   );
+$$;
+
+DROP POLICY IF EXISTS "profiles_admin_all" ON techanalysis_wb_profiles;
+
+CREATE POLICY "profiles_admin_all" ON techanalysis_wb_profiles
+  FOR ALL
+  USING (public.techanalysis_wb_is_admin())
+  WITH CHECK (public.techanalysis_wb_is_admin());
 
 -- Trigger: auto-create profile on signup
 -- NOTE: SECURITY DEFINER + explicit search_path + schema-qualified table are
