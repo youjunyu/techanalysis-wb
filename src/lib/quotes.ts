@@ -40,7 +40,9 @@ function toTencentCode(symbol: string): string {
  */
 function parseTencentQuote(raw: string, symbol: string): RawQuote | null {
   const parts = raw.split("~");
-  if (parts.length < 50) return null;
+  // A-shares return 50+ fields; HK/US lines can be shorter. We need up to
+  // index 37 (amount), so 38 is the hard minimum.
+  if (parts.length < 38) return null;
 
   const name = parts[1];
   const price = parseFloat(parts[3]) || 0;
@@ -84,40 +86,50 @@ export async function fetchQuotes(
 ): Promise<Map<string, RawQuote>> {
   const results = new Map<string, RawQuote>();
 
+  // Split into batches, fetch all batches in parallel with hard timeout
+  const batches: string[][] = [];
   for (let i = 0; i < symbols.length; i += batchSize) {
-    const batch = symbols.slice(i, i + batchSize);
-    const codes = batch.map(toTencentCode).join(",");
-
-    try {
-      const url = `https://qt.gtimg.cn/q=${codes}`;
-      const resp = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0" },
-      });
-
-      if (!resp.ok) {
-        console.error(`[quotes] Batch fetch failed: ${resp.status}`);
-        continue;
-      }
-
-      const text = await resp.text();
-      const lines = text.split(";").filter((l) => l.trim().length > 0);
-
-      for (const line of lines) {
-        const match = line.match(/v_(\w+)=["'](.*)["']/);
-        if (!match) continue;
-
-        const code = match[1];
-        const data = match[2];
-        const parsed = parseTencentQuote(data, code);
-
-        if (parsed && parsed.price > 0) {
-          results.set(code, parsed);
-        }
-      }
-    } catch (err) {
-      console.error(`[quotes] Error fetching batch:`, err);
-    }
+    batches.push(symbols.slice(i, i + batchSize));
   }
+
+  await Promise.all(
+    batches.map(async (batch) => {
+      const codes = batch.map(toTencentCode).join(",");
+
+      try {
+        const url = `https://qt.gtimg.cn/q=${codes}`;
+        const resp = await fetch(url, {
+          headers: { "User-Agent": "Mozilla/5.0" },
+          // Hard timeout: without this, an unreachable source hangs the whole
+          // cron invocation (observed on CF edge runtime).
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (!resp.ok) {
+          console.error(`[quotes] Batch fetch failed: ${resp.status}`);
+          return;
+        }
+
+        const text = await resp.text();
+        const lines = text.split(";").filter((l) => l.trim().length > 0);
+
+        for (const line of lines) {
+          const match = line.match(/v_(\w+)=["'](.*)["']/);
+          if (!match) continue;
+
+          const code = match[1];
+          const data = match[2];
+          const parsed = parseTencentQuote(data, code);
+
+          if (parsed && parsed.price > 0) {
+            results.set(code, parsed);
+          }
+        }
+      } catch (err) {
+        console.error(`[quotes] Error fetching batch:`, err);
+      }
+    })
+  );
 
   return results;
 }

@@ -34,14 +34,22 @@ CREATE POLICY "profiles_admin_all" ON techanalysis_wb_profiles
   );
 
 -- Trigger: auto-create profile on signup
+-- NOTE: SECURITY DEFINER + explicit search_path + schema-qualified table are
+-- REQUIRED on Supabase: the auth service fires this trigger with a session
+-- search_path that does not include `public`, so an unqualified table name
+-- makes user creation fail with "Database error creating new user".
 CREATE OR REPLACE FUNCTION techanalysis_wb_handle_new_user()
-RETURNS trigger AS $$
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
-  INSERT INTO techanalysis_wb_profiles (id, email)
+  INSERT INTO public.techanalysis_wb_profiles (id, email)
   VALUES (NEW.id, NEW.email);
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 DROP TRIGGER IF EXISTS techanalysis_wb_on_auth_user_created ON auth.users;
 CREATE TRIGGER techanalysis_wb_on_auth_user_created

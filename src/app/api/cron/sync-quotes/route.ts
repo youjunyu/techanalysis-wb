@@ -104,17 +104,14 @@ export async function POST(req: NextRequest) {
           }
         }
 
-      // Batch update stocks
-      for (const update of stockUpdates) {
-        await admin
+      // Batch update stocks (single upsert instead of N sequential requests)
+      if (stockUpdates.length > 0) {
+        const { error: updateErr } = await admin
           .from("stocks")
-          .update({
-            last_price: update.last_price,
-            last_price_change: update.last_price_change,
-            last_price_change_percent: update.last_price_change_percent,
-            updated_at: update.updated_at,
-          })
-          .eq("id", update.id);
+          .upsert(stockUpdates, { onConflict: "id" });
+        if (updateErr) {
+          errors.push(`stocks update: ${updateErr.message}`);
+        }
       }
 
       const summary = {
