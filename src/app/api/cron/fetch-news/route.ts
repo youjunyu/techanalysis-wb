@@ -85,14 +85,20 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Update fail_count for failing sources (best-effort, ignore errors)
-      for (const failure of failures) {
-        try {
-          await admin.from("news_sources")
-            .update({ fail_count: (await admin.from("news_sources").select("fail_count").eq("name", failure.name).single()).data?.fail_count + 1 || 1 })
+      // Update fail_count for failing sources (parallel, best-effort)
+      await Promise.allSettled(
+        failures.map(async (failure) => {
+          const { data } = await admin
+            .from("news_sources")
+            .select("fail_count")
+            .eq("name", failure.name)
+            .single();
+          await admin
+            .from("news_sources")
+            .update({ fail_count: (data?.fail_count ?? 0) + 1 })
             .eq("name", failure.name);
-        } catch {}
-      }
+        })
+      );
 
       const summary = {
         total_sources: sources.length,

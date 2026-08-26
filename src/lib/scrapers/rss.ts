@@ -93,39 +93,40 @@ export async function fetchRSSFeed(
 
 /**
  * Fetch multiple RSS feeds in parallel with per-source isolation.
+ * All sources are fetched CONCURRENTLY (each has its own 15s timeout in
+ * fetchRSSFeed), so total time is bounded by the slowest single source,
+ * not by waves of sequential batches.
  * Returns all successfully parsed articles.
  */
 export async function fetchMultipleFeeds(
   sources: { name: string; url: string }[],
   maxPerSource = 20,
-  parallelCount = 3
+  _parallelCount = 3 // kept for API compatibility; concurrency is now full
 ): Promise<{ articles: ParsedArticle[]; failures: { name: string; error: string }[] }> {
   const articles: ParsedArticle[] = [];
   const failures: { name: string; error: string }[] = [];
 
-  // Process in parallel batches
-  for (let i = 0; i < sources.length; i += parallelCount) {
-    const batch = sources.slice(i, i + parallelCount);
-    const results = await Promise.allSettled(
-      batch.map(async (src) => {
-        const items = await fetchRSSFeed(src.name, src.url, maxPerSource);
-        if (items.length === 0) {
-          throw new Error("No items returned");
-        }
-        return items;
-      })
-    );
-
-    for (let j = 0; j < results.length; j++) {
-      const r = results[j];
-      if (r.status === "fulfilled") {
-        articles.push(...r.value);
-      } else {
-        failures.push({
-          name: batch[j].name,
-          error: (r as PromiseRejectedResult).reason?.message || "Unknown error",
-        });
+  // Fetch ALL sources concurrently (subrequest limit on CF free plan is 50;
+  // we stay well under it with ~19 sources + a handful of REST calls).
+  const results = await Promise.allSettled(
+    sources.map(async (src) => {
+      const items = await fetchRSSFeed(src.name, src.url, maxPerSource);
+      if (items.length === 0) {
+        throw new Error("No items returned");
       }
+      return items;
+    })
+  );
+
+  for (let j = 0; j < results.length; j++) {
+    const r = results[j];
+    if (r.status === "fulfilled") {
+      articles.push(...r.value);
+    } else {
+      failures.push({
+        name: sources[j].name,
+        error: (r as PromiseRejectedResult).reason?.message || "Unknown error",
+      });
     }
   }
 
