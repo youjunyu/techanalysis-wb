@@ -554,7 +554,7 @@ INSERT INTO techanalysis_wb_stocks (symbol, market, name, industry_tags) VALUES
 ('usBE', 'US', 'Bloom Energy', ARRAY['新能源','燃料电池']),
 ('usPLUG', 'US', 'Plug Power', ARRAY['新能源','氢能']),
 ('usCHPT', 'US', 'ChargePoint', ARRAY['新能源','充电']),
-('usBLNK', 'US', 'Blink Charging', ARRAY['新能源','充电']),
+('usBLNK', 'US', 'Blink Charging', ARRAY['新能源','充电'])
 ON CONFLICT (symbol, market) DO NOTHING;
 
 -- ============================================================
@@ -583,7 +583,7 @@ INSERT INTO techanalysis_wb_news_sources (name, url, type, region) VALUES
 ('MarketWatch', 'https://feeds.content.dowjones.io/public/rss/mw_topstories', 'rss', 'global'),
 -- 宏观/机构
 ('美联储', 'https://www.federalreserve.gov/feeds/press_all.xml', 'rss', 'global'),
-('中国人民银行', 'http://www.pbc.gov.cn/rss/zhengcefabu.xml', 'rss', 'global'),
+('中国人民银行', 'http://www.pbc.gov.cn/rss/zhengcefabu.xml', 'rss', 'global')
 ON CONFLICT DO NOTHING;
 
 -- ============================================================
@@ -599,7 +599,7 @@ INSERT INTO techanalysis_wb_task_registry (job_name, owner, expected_interval_mi
 ('westock-news-sync', 'workbuddy-automation', 60, 2),
 ('westock-market-overview', 'workbuddy-automation', 720, 2),
 ('westock-financials', 'workbuddy-automation', 1440, 3),
-('westock-hot', 'workbuddy-automation', 720, 2),
+('westock-hot', 'workbuddy-automation', 720, 2)
 ON CONFLICT (job_name) DO NOTHING;
 
 -- ============================================================
