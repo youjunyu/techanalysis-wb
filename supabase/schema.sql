@@ -469,7 +469,7 @@ CREATE POLICY "macro_read_all" ON techanalysis_wb_macro_events FOR SELECT USING 
 -- ============================================================
 INSERT INTO techanalysis_wb_stocks (symbol, market, name, industry_tags) VALUES
 -- A股 - AI算力
-('sh002230', 'A', '科大讯飞', ARRAY['AI算力','语音AI']),
+('sz002230', 'A', '科大讯飞', ARRAY['AI算力','语音AI']),
 ('sh688111', 'A', '金山办公', ARRAY['AI应用','办公']),
 ('sh688787', 'A', '海天瑞声', ARRAY['AI算力','数据']),
 ('sz000977', 'A', '中科曙光', ARRAY['AI算力','服务器']),
@@ -509,9 +509,9 @@ INSERT INTO techanalysis_wb_stocks (symbol, market, name, industry_tags) VALUES
 ('hk01024', 'HK', '快手', ARRAY['互联网','短视频']),
 ('hk09888', 'HK', '百度集团', ARRAY['互联网','AI']),
 ('hk09618', 'HK', '京东集团', ARRAY['互联网','电商']),
-('hk03888', 'HK', '中芯国际', ARRAY['半导体','代工']),
+('hk03888', 'HK', '金山软件', ARRAY['软件','游戏']),
 ('hk01810', 'HK', '小米集团', ARRAY['消费电子','手机']),
-('hk00981', 'HK', 'SMIC', ARRAY['半导体','代工']),
+('hk00981', 'HK', '中芯国际', ARRAY['半导体','代工']),
 ('hk02382', 'HK', '舜宇光学', ARRAY['消费电子','光学']),
 ('hk00992', 'HK', '联想集团', ARRAY['消费电子','PC']),
 ('hk02013', 'HK', '微盟集团', ARRAY['互联网','SaaS']),
@@ -552,7 +552,7 @@ INSERT INTO techanalysis_wb_stocks (symbol, market, name, industry_tags) VALUES
 ('usARM', 'US', 'ARM Holdings', ARRAY['半导体','IP']),
 ('usGFS', 'US', 'GlobalFoundries', ARRAY['半导体','代工']),
 -- 美股 - 机器人/自动化
-('usUBTECH', 'US', '优必选', ARRAY['机器人','人形']),
+('hk09880', 'HK', '优必选', ARRAY['机器人','人形']),
 ('usROBO', 'US', 'ROBO ETF', ARRAY['机器人','ETF']),
 -- 美股 - 新能源
 ('usENPH', 'US', 'Enphase', ARRAY['新能源','逆变']),
