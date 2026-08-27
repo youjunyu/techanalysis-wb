@@ -13,11 +13,20 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
 
   // Fetch watchlist stocks with latest quotes
-  const { data: watchlist } = await supabase
+  // (两步查询：前缀代理只处理 .from()，select() 内嵌资源名不会被加前缀)
+  const { data: watchRows } = await supabase
     .from("user_watchlist")
-    .select("stock_id, stocks(id, symbol, name, market, last_price, last_price_change, last_price_change_percent)")
+    .select("stock_id")
     .eq("user_id", user?.id || "")
     .limit(10);
+
+  const watchIds = (watchRows || []).map((w: any) => w.stock_id);
+  const stocks = watchIds.length > 0
+    ? (await supabase
+        .from("stocks")
+        .select("id, symbol, name, market, last_price, last_price_change, last_price_change_percent")
+        .in("id", watchIds)).data || []
+    : [];
 
   // Fetch recent news
   const { data: recentNews } = await supabase
@@ -34,7 +43,7 @@ export default async function DashboardPage() {
     .limit(1)
     .single();
 
-  const stocks = watchlist?.map((w: any) => w.stocks).filter(Boolean) || [];
+
 
   return (
     <div className="p-6 space-y-6">

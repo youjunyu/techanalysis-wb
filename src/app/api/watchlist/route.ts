@@ -18,17 +18,32 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data, error } = await supabase
+    // (两步查询：前缀代理只处理 .from()，select() 内嵌资源名不会被加前缀)
+    const { data: wlRows, error: wlError } = await supabase
       .from("user_watchlist")
-      .select("stock_id, created_at, stocks(id, symbol, market, name, industry_tags, last_price, last_price_change, last_price_change_percent)")
+      .select("stock_id, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (wlError) {
+      return NextResponse.json({ error: wlError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ watchlist: data || [] });
+    const wlIds = (wlRows || []).map((w: any) => w.stock_id);
+    const stockRows = wlIds.length > 0
+      ? (await supabase
+          .from("stocks")
+          .select("id, symbol, market, name, industry_tags, last_price, last_price_change, last_price_change_percent")
+          .in("id", wlIds)).data || []
+      : [];
+    const stockMap = new Map(stockRows.map((s: any) => [s.id, s]));
+    const data = (wlRows || []).map((w: any) => ({
+      stock_id: w.stock_id,
+      created_at: w.created_at,
+      stocks: stockMap.get(w.stock_id) || null,
+    }));
+
+    return NextResponse.json({ watchlist: data });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Internal error" },

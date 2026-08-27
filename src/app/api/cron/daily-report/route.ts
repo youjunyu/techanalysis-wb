@@ -51,10 +51,20 @@ export async function POST(req: NextRequest) {
         }
 
         // Get user's watchlist stocks with latest quotes
-        const { data: watchlist } = await admin
+        // (两步查询：前缀代理只处理 .from()，select() 内嵌资源名不会被加前缀)
+        const { data: watchlistRows } = await admin
           .from("user_watchlist")
-          .select("stock_id, stocks(id, symbol, market, name, last_price, last_price_change, last_price_change_percent)")
+          .select("stock_id")
           .eq("user_id", profile.id);
+
+        const watchStockIds = (watchlistRows || []).map((w: any) => w.stock_id);
+        const watchStocks = watchStockIds.length > 0
+          ? (await admin
+              .from("stocks")
+              .select("id, symbol, market, name, last_price, last_price_change, last_price_change_percent")
+              .in("id", watchStockIds)).data || []
+          : [];
+        const watchlist = watchStocks.map((s: any) => ({ stocks: s }));
 
         // Get recent news matching user's subscription tags
         const tags = profile.subscription_tags || [];
